@@ -6,8 +6,8 @@ Claude Impact Lab × Cerebras Café Compute, Bhopal, 11 Oct 2026 · **Track 1: B
 
 | | |
 |---|---|
-| **Team** | _Team name_ (edit) |
-| **Members** | Manikant Goutam (tech lead), _add teammates_ |
+| **Team** | Manikant Goutam (solo) |
+| **Members** | Manikant Goutam (solo build) |
 | **The one user** | A building-permission clerk at the Bhopal Municipal Corporation counter, answering a citizen within a minute |
 | **Outcome** | Short answer in the citizen's language, with rule number, PDF page and verbatim quote, plus correct table numbers. Says "not found" when the rules are silent |
 

@@ -60,7 +60,7 @@ curl -X POST http://localhost:8080/v1/ask -H "X-API-Key: bvs-demo-key" -H "Conte
 - Dashboard data is a local SQLite log. There's no user login (the gateway uses API keys).
 
 ## Data used
-- Participant pack: MP Bhumi Vikas Rules 2012, consolidated to 06-03-2025 ([English PDF](https://mptownplan.gov.in/NewsPDF/bvn06032025E.pdf), [Hindi PDF](https://mptownplan.gov.in/NewsPDF/bvn06032025H.pdf)), split by the organisers into `data/bhumi_vikas_rules.jsonl` ([pack](https://github.com/Laaaaksh/bhopal-impact-lab-2026))
+- Participant pack: MP Bhumi Vikas Rules 2012, consolidated to 06-03-2025 ([English PDF](https://mptownplan.gov.in/NewsPDF/bvn06032025E.pdf), [Hindi PDF](https://mptownplan.gov.in/NewsPDF/bvn06032025H.pdf)), split by the organisers into `data/bhumi_vikas_rules.jsonl.gz` (gzipped to keep the repo light) ([pack](https://github.com/Laaaaksh/bhopal-impact-lab-2026))
 - Extra public data, the 28-08-2026 amendment to Rule 2(5)(c): [TeamLease RegTech](https://teamleaseregtech.com/updates/article/59469/government-of-madhya-pradesh-amendment-to-land-development-rules), [MTP News](https://mtpnews.in/path-cleared-for-building-houses-on-plots-up-to-500-sq-m-in-mp-no-development-permission-required-from-tcp/)
 - No personal data. No connection to any government system.
 

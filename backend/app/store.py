@@ -46,6 +46,18 @@ def hindi_to_english_keywords(text: str) -> str:
     return " ".join(out + nums)
 
 
+def _read_text(path) -> str:
+    """Read a data file, falling back to its .gz twin (the repo ships the large files gzipped)."""
+    import gzip
+    from pathlib import Path
+    path = Path(path)
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    gz = path.with_name(path.name + ".gz")
+    with gzip.open(gz, "rt", encoding="utf-8") as fh:
+        return fh.read()
+
+
 @dataclass
 class Rule:
     rule: str
@@ -84,15 +96,15 @@ class RuleStore:
 
     # ---------- loading ----------
     def _load(self) -> None:
-        with open(config.RULES_FILE, encoding="utf-8") as fh:
-            for line in fh:
+        if True:
+            for line in _read_text(config.RULES_FILE).splitlines():
                 if not line.strip():
                     continue
                 d = json.loads(line)
                 r = Rule(str(d["rule"]), d["title"], d["part"], int(d["page_start"]), int(d["page_end"]), d["text"])
                 self.rules[r.rule] = r
                 self.order.append(r.rule)
-        raw = config.FULLTEXT_FILE.read_text(encoding="utf-8")
+        raw = _read_text(config.FULLTEXT_FILE)
         parts = PAGE_RE.split(raw)
         for i in range(1, len(parts) - 1, 2):
             self.pages[int(parts[i])] = parts[i + 1]

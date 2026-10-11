@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bhumi Vikas Sahayak · भूमि विकास सहायक</title>
+  <meta name="description" content="Ask the Bhopal building rulebook and get an answer with the rule number." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: {
+      fontFamily: { sans: ['Inter', 'Noto Sans Devanagari', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+      colors: { ink: '#0b1020', brand: { 50:'#eef6ff',100:'#d9ebff',300:'#8cc4ff',400:'#5aa7ff',500:'#2f86ff',600:'#1a68e6',700:'#1552b4' },
+                saffron: { 400:'#ffb547', 500:'#ff9f1c' }, leaf: { 400:'#34d399', 500:'#10b981' } } } } };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/config.js"></script>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-ink dark:text-slate-100 font-sans antialiased">
+<div id="app" class="min-h-screen flex">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="hidden md:flex w-64 shrink-0 flex-col border-r border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-white/[0.03] backdrop-blur-xl">
+    <div class="px-5 py-5 flex items-center gap-3">
+      <div class="logo h-10 w-10 rounded-xl grid place-items-center text-white font-extrabold">भू</div>
+      <div>
+        <div class="font-extrabold tracking-tight leading-5">Bhumi Vikas</div>
+        <div class="text-xs text-slate-500 dark:text-slate-400">Sahayak · सहायक</div>
+      </div>
+    </div>
+    <nav class="px-3 space-y-1 text-sm" id="nav">
+      <a href="#/ask" data-route="ask" class="nav-link">💬 <span>Ask the rulebook</span></a>
+      <a href="#/dashboard" data-route="dashboard" class="nav-link">📊 <span>Dashboard</span></a>
+      <a href="#/rules" data-route="rules" class="nav-link">📚 <span>Rule explorer</span></a>
+      <a href="#/calculators" data-route="calculators" class="nav-link">🧮 <span>Calculators</span></a>
+      <a href="#/summaries" data-route="summaries" class="nav-link">📝 <span>Summaries</span></a>
+      <a href="#/reports" data-route="reports" class="nav-link">📈 <span>Reports &amp; accuracy</span></a>
+      <a href="#/integrate" data-route="integrate" class="nav-link">🔌 <span>API &amp; integrate</span></a>
+    </nav>
+    <div class="mt-auto p-4 space-y-3">
+      <div id="provider-pill" class="text-xs rounded-xl p-3 bg-slate-100 dark:bg-white/5"></div>
+      <button id="theme-toggle" class="w-full text-xs rounded-lg py-2 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5">🌗 Toggle theme</button>
+      <p class="text-[11px] leading-4 text-slate-400">Rules consolidated to 06-03-2025 + tracked amendments. Points to the rule; the clerk decides.</p>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 min-w-0">
+    <header class="sticky top-0 z-20 border-b border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-ink/70 backdrop-blur-xl">
+      <div class="px-4 md:px-8 h-14 flex items-center gap-3">
+        <button id="menu-btn" class="md:hidden text-xl">☰</button>
+        <h1 id="page-title" class="font-bold tracking-tight">Ask the rulebook</h1>
+        <span class="ml-auto text-xs hidden sm:inline-flex items-center gap-2 text-slate-500"><span class="dot"></span><span id="health-text">connecting…</span></span>
+      </div>
+    </header>
+    <section id="view" class="px-4 md:px-8 py-6 max-w-7xl mx-auto"></section>
+  </main>
+</div>
+
+<!-- mobile nav -->
+<div id="mobile-nav" class="fixed inset-0 z-40 hidden bg-black/40" onclick="this.classList.add('hidden')">
+  <div class="w-64 h-full bg-white dark:bg-ink p-4 space-y-1" id="mobile-nav-inner"></div>
+</div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

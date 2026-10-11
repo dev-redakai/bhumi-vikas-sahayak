@@ -1,0 +1,19 @@
+[
+ {"id":1,"lang":"en","question":"My house faces a 10 m wide street and will be 9 m tall. How much open space do I leave at the front?","expect_rules":["56"],"expect_numbers":["3.6"],"not_found":false},
+ {"id":2,"lang":"en","question":"I want a farm house on agricultural land. What is the minimum plot size and the maximum FAR?","expect_rules":["17"],"expect_numbers":["0.40","0.10"],"not_found":false},
+ {"id":3,"lang":"en","question":"My development permission was granted in 2023. How long does it stay valid, and how many times can I renew it?","expect_rules":["23"],"expect_numbers":["3","2"],"not_found":false},
+ {"id":4,"lang":"en","question":"I applied for building permission and the authority has not replied. What happens if they miss the deadline?","expect_rules":["28"],"expect_numbers":[],"not_found":false},
+ {"id":5,"lang":"en","question":"How far must my balcony stay from a low-voltage overhead electric line, vertically and horizontally?","expect_rules":["52"],"expect_numbers":["2.5","1.2"],"not_found":false},
+ {"id":6,"lang":"en","question":"Who is allowed to sign and submit my building plans?","expect_rules":["18","26"],"expect_numbers":[],"not_found":false},
+ {"id":7,"lang":"en","question":"What documents go with an application for building permission?","expect_rules":["14","16"],"expect_numbers":[],"not_found":false},
+ {"id":8,"lang":"en","question":"What is the fee for building permission for a residential house?","expect_rules":["21"],"expect_numbers":["750"],"not_found":false},
+ {"id":9,"lang":"en","question":"Can I change my plan after it is sanctioned?","expect_rules":["24"],"expect_numbers":[],"not_found":false},
+ {"id":10,"lang":"en","question":"What is the minimum rear open space for a 150 sq m residential plot?","expect_rules":["56"],"expect_numbers":["1.5"],"not_found":false},
+ {"id":11,"lang":"en","question":"Do I need separate development permission for a 300 sq m plot that matches the Development Plan?","expect_rules":["2"],"expect_numbers":["500"],"not_found":false,"expect_amendment":"2026-08-28-rule-2-5-c"},
+ {"id":12,"lang":"en","question":"Which rule decides what happens when the Development Plan and these rules disagree?","expect_rules":["103"],"expect_numbers":[],"not_found":false},
+ {"id":13,"lang":"en","question":"What are the rules for lifts in a building taller than 15 m?","expect_rules":["83"],"expect_numbers":["12.5"],"not_found":false},
+ {"id":14,"lang":"hi","question":"मेरा प्लॉट 200 वर्ग मीटर का है और सामने 9 मीटर चौड़ी सड़क है। आगे कितनी जगह खाली छोड़नी होगी?","expect_rules":["56"],"expect_numbers":["3.0"],"not_found":false},
+ {"id":15,"lang":"hi","question":"बिल्डिंग परमिशन की फीस कितनी है और किस नियम में लिखी है?","expect_rules":["21"],"expect_numbers":[],"not_found":false},
+ {"id":16,"lang":"en","question":"How do I pay my property tax online?","expect_rules":[],"expect_numbers":[],"not_found":true},
+ {"id":17,"lang":"en","question":"What is the current market rate for land in Kolar Road, Bhopal?","expect_rules":[],"expect_numbers":[],"not_found":true}
+]

@@ -1,0 +1,39 @@
+[
+  {
+    "id": "2026-08-28-rule-2-5-c",
+    "rule": "2",
+    "sub_rule": "2(5)(c)",
+    "date": "2026-08-28",
+    "title": "Plots up to 500 sq m: no separate development permission",
+    "summary": "Rule 2(5)(c) substituted. Where proposed construction or reconstruction conforms to the existing land use in the approved Development Plan of the town, the local authority may permit construction/reconstruction on plots up to 500 sq m, subject to the Development Plan norms. Such construction does not need separate development permission under Rule 2(5)(a).",
+    "summary_hi": "नियम 2(5)(c) प्रतिस्थापित। यदि प्रस्तावित निर्माण/पुनर्निर्माण नगर की स्वीकृत विकास योजना के मौजूदा भूमि उपयोग के अनुरूप है, तो 500 वर्ग मीटर तक के प्लॉट पर स्थानीय निकाय विकास योजना के मानकों के अधीन निर्माण की अनुमति दे सकता है। इसके लिए नियम 2(5)(a) के तहत अलग विकास अनुमति आवश्यक नहीं है।",
+    "affects_rules": [
+      "2",
+      "12"
+    ],
+    "triggers": [
+      "separate development permission",
+      "separate permission",
+      "2(5)",
+      "plots up to 500",
+      "plot up to 500",
+      "अलग विकास अनुमति"
+    ],
+    "sources": [
+      {
+        "name": "TeamLease RegTech legal update (14 Sep 2026)",
+        "url": "https://teamleaseregtech.com/updates/article/59469/government-of-madhya-pradesh-amendment-to-land-development-rules"
+      },
+      {
+        "name": "MTP News (15 Sep 2026)",
+        "url": "https://mtpnews.in/path-cleared-for-building-houses-on-plots-up-to-500-sq-m-in-mp-no-development-permission-required-from-tcp/"
+      }
+    ],
+    "verification": "Secondary sources; Gazette text not yet attached. Clerk should confirm against the Gazette notification.",
+    "anchor": {
+      "rule": "2",
+      "contains": "already developed in the Central area"
+    },
+    "old_text_note": "The dataset (06-03-2025) still prints the old Rule 2(5)(c): land already developed in the Central area of the Development Plan, where local bodies issue building permission. Replaced on 28-08-2026."
+  }
+]

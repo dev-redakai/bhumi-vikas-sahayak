@@ -1,0 +1,40 @@
+:root { --grad: linear-gradient(135deg, #1a68e6 0%, #7c3aed 55%, #ff9f1c 100%); }
+.logo { background: var(--grad); box-shadow: 0 8px 24px -8px rgba(124,58,237,.55); }
+.nav-link { display:flex; gap:.6rem; align-items:center; padding:.6rem .8rem; border-radius:.75rem; color:inherit; opacity:.8; transition:all .15s; }
+.nav-link:hover { background: rgba(47,134,255,.08); opacity:1; }
+.nav-link.active { background: rgba(47,134,255,.12); color:#1a68e6; opacity:1; font-weight:600; }
+.dark .nav-link.active { color:#8cc4ff; background: rgba(140,196,255,.1); }
+.card { border-radius: 1.25rem; border: 1px solid rgba(15,23,42,.07); background: rgba(255,255,255,.85); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 32px -18px rgba(15,23,42,.18); }
+.dark .card { background: rgba(255,255,255,.035); border-color: rgba(255,255,255,.08); box-shadow:none; }
+.hero { background: radial-gradient(1200px 300px at 0% 0%, rgba(47,134,255,.18), transparent 60%), radial-gradient(800px 260px at 100% 0%, rgba(255,159,28,.16), transparent 60%); }
+.grad-text { background: var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.btn { display:inline-flex; align-items:center; gap:.5rem; border-radius:.8rem; padding:.6rem 1rem; font-weight:600; font-size:.875rem; transition: all .15s; }
+.btn-primary { background: var(--grad); color:white; box-shadow: 0 10px 24px -12px rgba(26,104,230,.8); }
+.btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.btn-ghost { border:1px solid rgba(15,23,42,.12); }
+.dark .btn-ghost { border-color: rgba(255,255,255,.14); }
+.chip { font-size:.78rem; padding:.4rem .75rem; border-radius:999px; border:1px solid rgba(15,23,42,.1); background:white; cursor:pointer; transition: all .15s; text-align:left; }
+.chip:hover { border-color:#2f86ff; color:#1a68e6; }
+.dark .chip { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1); }
+.badge { display:inline-flex; align-items:center; gap:.3rem; font-size:.7rem; font-weight:600; padding:.18rem .55rem; border-radius:999px; }
+.quote { border-left: 3px solid #2f86ff; background: rgba(47,134,255,.06); padding:.6rem .8rem; border-radius:.5rem; font-size:.84rem; }
+.dark .quote { background: rgba(140,196,255,.07); }
+.amend { border-left: 3px solid #ff9f1c; background: rgba(255,159,28,.08); }
+.dot { width:8px; height:8px; border-radius:999px; background:#94a3b8; display:inline-block; }
+.dot.up { background:#10b981; box-shadow: 0 0 0 4px rgba(16,185,129,.18); }
+.dot.down { background:#ef4444; }
+.input { width:100%; border-radius: 1rem; border:1px solid rgba(15,23,42,.12); background:white; padding: .9rem 1rem; outline:none; transition: box-shadow .15s, border-color .15s; }
+.input:focus { border-color:#2f86ff; box-shadow: 0 0 0 4px rgba(47,134,255,.15); }
+.dark .input { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.12); color: inherit; }
+.kpi { font-size: 1.9rem; font-weight: 800; letter-spacing: -.02em; }
+.table th { text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; padding:.6rem .75rem; }
+.table td { padding:.65rem .75rem; border-top:1px solid rgba(15,23,42,.06); font-size:.86rem; vertical-align:top; }
+.dark .table td { border-color: rgba(255,255,255,.06); }
+.skeleton { background: linear-gradient(90deg, rgba(148,163,184,.15), rgba(148,163,184,.3), rgba(148,163,184,.15)); background-size:200% 100%; animation: sh 1.2s infinite; border-radius:.5rem; }
+@keyframes sh { to { background-position: -200% 0; } }
+.fade-in { animation: fi .25s ease-out; }
+@keyframes fi { from { opacity:0; transform: translateY(4px);} to { opacity:1; transform:none; } }
+pre.code { background:#0b1020; color:#e2e8f0; padding:1rem; border-radius:.9rem; overflow:auto; font-size:.8rem; font-family:'JetBrains Mono',monospace; }
+.rule-text { white-space: pre-wrap; font-family:'JetBrains Mono', monospace; font-size:.78rem; line-height:1.45; }
+.step { display:flex; gap:.5rem; align-items:center; font-size:.75rem; padding:.3rem 0; }
+body.embed aside, body.embed header { display:none !important; }

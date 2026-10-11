@@ -27,3 +27,17 @@ so the dashboard splits traffic by portal.
 ```html
 <script src="https://<host>/widget.js" data-api-base="https://<host>"></script>
 ```
+
+
+## Bring your own LLM key (optional headers)
+
+Any request may carry the caller's own provider keys. The server uses them for that request only, never stores or logs them, and reports `"source": "your key"` in `/v1/health`.
+
+| Header | Meaning |
+|---|---|
+| `X-BVS-Cerebras-Key` / `X-BVS-Cerebras-Model` | Cerebras key and preferred model |
+| `X-BVS-Anthropic-Key` / `X-BVS-Anthropic-Model` | Anthropic key and model |
+| `X-BVS-OpenAI-Key` / `X-BVS-OpenAI-Base` / `X-BVS-OpenAI-Model` | Any OpenAI-compatible endpoint (public https only; private and localhost addresses are refused) |
+| `X-BVS-Provider-Order` | e.g. `cerebras,anthropic,openai_compat` |
+
+`POST /v1/llm/test` with `{"providers": ["cerebras"]}` checks each provider with a one-word prompt and returns `ok`, `model` and `latency_ms`, or a plain-language error.

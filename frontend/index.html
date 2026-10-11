@@ -29,17 +29,12 @@
         <div class="text-xs text-slate-500 dark:text-slate-400">Sahayak · सहायक</div>
       </div>
     </div>
-    <nav class="px-3 space-y-1 text-sm" id="nav">
-      <a href="#/ask" data-route="ask" class="nav-link">💬 <span>Ask the rulebook</span></a>
-      <a href="#/dashboard" data-route="dashboard" class="nav-link">📊 <span>Dashboard</span></a>
-      <a href="#/rules" data-route="rules" class="nav-link">📚 <span>Rule explorer</span></a>
-      <a href="#/calculators" data-route="calculators" class="nav-link">🧮 <span>Calculators</span></a>
-      <a href="#/summaries" data-route="summaries" class="nav-link">📝 <span>Summaries</span></a>
-      <a href="#/reports" data-route="reports" class="nav-link">📈 <span>Reports &amp; accuracy</span></a>
-      <a href="#/integrate" data-route="integrate" class="nav-link">🔌 <span>API &amp; integrate</span></a>
-    </nav>
+    <nav class="px-3 space-y-1 text-sm overflow-y-auto" id="nav"></nav>
     <div class="mt-auto p-4 space-y-3">
       <div id="provider-pill" class="text-xs rounded-xl p-3 bg-slate-100 dark:bg-white/5"></div>
+      <div class="flex gap-1 text-xs" role="group" aria-label="Language">
+        <button data-lang="en" class="lang-btn">EN</button><button data-lang="hi" class="lang-btn">हिं</button><button data-lang="both" class="lang-btn">EN+हिं</button>
+      </div>
       <button id="theme-toggle" class="w-full text-xs rounded-lg py-2 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5">🌗 Toggle theme</button>
       <p class="text-[11px] leading-4 text-slate-400">Rules consolidated to 06-03-2025 + tracked amendments. Points to the rule; the clerk decides.</p>
     </div>
@@ -52,6 +47,8 @@
         <button id="menu-btn" class="md:hidden text-xl">☰</button>
         <h1 id="page-title" class="font-bold tracking-tight">Ask the rulebook</h1>
         <span class="ml-auto text-xs hidden sm:inline-flex items-center gap-2 text-slate-500"><span class="dot"></span><span id="health-text">connecting…</span></span>
+        <a href="#/settings" class="text-xs btn-ghost rounded-lg px-2 py-1" title="Settings · सेटिंग्स">⚙️</a>
+        <button id="help-btn" class="text-xs btn-ghost rounded-lg px-2 py-1" title="Help · सहायता">❓ Help · सहायता</button>
       </div>
     </header>
     <section id="view" class="px-4 md:px-8 py-6 max-w-7xl mx-auto"></section>

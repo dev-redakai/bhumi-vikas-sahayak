@@ -10,10 +10,13 @@ A provider that errors is skipped for PROVIDER_COOLDOWN_S seconds, so a Cerebras
 outage costs one timeout, not one per request."""
 from __future__ import annotations
 
+import contextvars
+import ipaddress
 import json
 import re
 import time
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 import httpx
 
@@ -22,6 +25,74 @@ from . import config
 
 class LLMUnavailable(Exception):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Bring-your-own-key (BYOK): a UI user (or a partner portal) can send their own
+# provider keys per request as headers. They live only for that request, in this
+# context variable, and are never logged, stored, or echoed back.
+# ---------------------------------------------------------------------------
+_overrides: contextvars.ContextVar[dict] = contextvars.ContextVar("bvs_llm_overrides", default={})
+
+BYOK_HEADERS = {
+    "x-bvs-cerebras-key": "cerebras_key",
+    "x-bvs-cerebras-model": "cerebras_model",
+    "x-bvs-anthropic-key": "anthropic_key",
+    "x-bvs-anthropic-model": "anthropic_model",
+    "x-bvs-openai-key": "openai_key",
+    "x-bvs-openai-base": "openai_base",
+    "x-bvs-openai-model": "openai_model",
+    "x-bvs-provider-order": "order",
+}
+
+
+def _safe_base(url: str) -> str | None:
+    """Only public https endpoints may be supplied by a caller (prevents SSRF into the server's network)."""
+    try:
+        u = urlparse(url.strip())
+    except ValueError:
+        return None
+    if u.scheme != "https" or not u.hostname:
+        return None
+    host = u.hostname.lower()
+    if host in ("localhost",) or host.endswith((".local", ".internal")):
+        return None
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            return None
+    except ValueError:
+        pass
+    return url.strip().rstrip("/")
+
+
+def overrides_from_headers(headers) -> dict:
+    out: dict = {}
+    for h, k in BYOK_HEADERS.items():
+        v = (headers.get(h) or "").strip()
+        if not v or len(v) > 400:
+            continue
+        if k == "order":
+            out[k] = [x.strip() for x in v.split(",") if x.strip() in ("cerebras", "anthropic", "openai_compat")]
+        elif k == "openai_base":
+            b = _safe_base(v)
+            if b:
+                out[k] = b
+        else:
+            out[k] = v
+    return out
+
+
+def set_overrides(d: dict):
+    return _overrides.set(d)
+
+
+def reset_overrides(token) -> None:
+    _overrides.reset(token)
+
+
+def current_overrides() -> dict:
+    return _overrides.get()
 
 
 @dataclass
@@ -72,37 +143,79 @@ class ProviderChain:
         }
         self.client = httpx.Client(timeout=config.LLM_TIMEOUT_S)
 
+    # ---------- resolution: server env keys, overridden per request by BYOK headers ----------
+    def resolve(self, name: str) -> dict:
+        o = current_overrides()
+        if name == "cerebras":
+            key = o.get("cerebras_key") or config.CEREBRAS_API_KEY
+            models = [o["cerebras_model"]] + [m for m in config.CEREBRAS_MODELS if m != o["cerebras_model"]] \
+                if o.get("cerebras_model") else config.CEREBRAS_MODELS
+            return {"key": key, "models": models, "base": config.CEREBRAS_BASE_URL, "byok": bool(o.get("cerebras_key"))}
+        if name == "anthropic":
+            return {"key": o.get("anthropic_key") or config.ANTHROPIC_API_KEY,
+                    "models": [o.get("anthropic_model") or config.ANTHROPIC_MODEL], "base": "https://api.anthropic.com",
+                    "byok": bool(o.get("anthropic_key"))}
+        if name == "openai_compat":
+            byok = bool(o.get("openai_key"))
+            return {"key": o.get("openai_key") or config.OPENAI_COMPAT_API_KEY,
+                    "models": [o.get("openai_model") or config.OPENAI_COMPAT_MODEL],
+                    "base": (o.get("openai_base") if byok else None) or config.OPENAI_COMPAT_BASE_URL, "byok": byok}
+        return {"key": "", "models": [], "base": "", "byok": False}
+
+    def order(self) -> list[str]:
+        return current_overrides().get("order") or config.PROVIDER_ORDER
+
     @property
     def any_available(self) -> bool:
-        return any(s.configured for s in self.state.values())
+        return any(self.resolve(n)["key"] for n in self.state)
 
     def health(self) -> list[dict]:
-        out = [self.state[n].public() for n in config.PROVIDER_ORDER if n in self.state]
+        out = []
+        for n in self.order():
+            if n not in self.state:
+                continue
+            p = self.state[n].public()
+            r = self.resolve(n)
+            if r["byok"]:  # caller's own key: report it as configured, never the key itself
+                p.update(configured=True, status="up" if p["status"] in ("not_configured", "unknown", "up") else p["status"],
+                         models=r["models"], source="your key")
+            else:
+                p["source"] = "server" if p["configured"] else "none"
+            out.append(p)
         out.append({"name": "offline", "configured": True, "status": "up", "models": ["extractive+calculators"],
                     "calls": 0, "failures": 0, "avg_latency_ms": 0, "last_error": None})
         return out
 
     # ---------- public ----------
     def complete(self, system: str, user: str, max_tokens: int = 900, temperature: float = 0.0,
-                 json_mode: bool = False) -> LLMResponse:
+                 json_mode: bool = False, only: list[str] | None = None) -> LLMResponse:
         errors = []
-        for name in config.PROVIDER_ORDER:
+        for name in (only or self.order()):
             st = self.state.get(name)
-            if not st or not st.configured or st.cooling_down:
+            if not st:
                 continue
-            for model in st.models:
+            r = self.resolve(name)
+            # the circuit breaker protects the server's shared key; a caller's own key is always tried
+            if not r["key"] or (st.cooling_down and not r["byok"]):
+                continue
+            for model in r["models"]:
                 t0 = time.perf_counter()
                 st.calls += 1
                 try:
-                    text = getattr(self, f"_call_{name}")(model, system, user, max_tokens, temperature, json_mode)
+                    text = getattr(self, f"_call_{name}")(r, model, system, user, max_tokens, temperature, json_mode)
                     ms = (time.perf_counter() - t0) * 1000
                     st.last_ok, st.total_latency_ms = time.time(), st.total_latency_ms + ms
                     return LLMResponse(text, name, model, ms)
                 except Exception as exc:  # noqa: BLE001 - any failure moves us down the chain
                     st.failures += 1
-                    st.last_error = f"{model}: {type(exc).__name__}: {str(exc)[:160]}"
+                    msg = str(exc)[:160].replace(r["key"], "***") if r["key"] else str(exc)[:160]
+                    st.last_error = f"{model}: {type(exc).__name__}: {msg}"
                     errors.append(st.last_error)
-            st.last_error_at = time.time()
+                    code = getattr(getattr(exc, "response", None), "status_code", None)
+                    if code in (401, 403):  # a bad key fails for every model: don't retry the others
+                        break
+            if not r["byok"]:
+                st.last_error_at = time.time()
         raise LLMUnavailable("; ".join(errors) or "no LLM provider configured")
 
     # ---------- providers ----------
@@ -129,18 +242,16 @@ class ProviderChain:
             raise ValueError("empty completion")
         return content
 
-    def _call_cerebras(self, model, system, user, max_tokens, temperature, json_mode) -> str:
-        return self._openai_style(config.CEREBRAS_BASE_URL, config.CEREBRAS_API_KEY, model, system, user,
-                                  max_tokens, temperature, json_mode)
+    def _call_cerebras(self, r, model, system, user, max_tokens, temperature, json_mode) -> str:
+        return self._openai_style(r["base"], r["key"], model, system, user, max_tokens, temperature, json_mode)
 
-    def _call_openai_compat(self, model, system, user, max_tokens, temperature, json_mode) -> str:
-        return self._openai_style(config.OPENAI_COMPAT_BASE_URL, config.OPENAI_COMPAT_API_KEY, model, system, user,
-                                  max_tokens, temperature, json_mode)
+    def _call_openai_compat(self, r, model, system, user, max_tokens, temperature, json_mode) -> str:
+        return self._openai_style(r["base"], r["key"], model, system, user, max_tokens, temperature, json_mode)
 
-    def _call_anthropic(self, model, system, user, max_tokens, temperature, json_mode) -> str:
+    def _call_anthropic(self, rv, model, system, user, max_tokens, temperature, json_mode) -> str:
         r = self.client.post(
             "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": config.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01",
+            headers={"x-api-key": rv["key"], "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
             json={"model": model, "max_tokens": max_tokens, "temperature": temperature, "system": system,
                   "messages": [{"role": "user", "content": user}]},

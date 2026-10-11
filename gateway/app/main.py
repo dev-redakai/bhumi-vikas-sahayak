@@ -39,7 +39,7 @@ def _load_keys() -> dict[str, dict]:
 
 API_KEYS = _load_keys()
 PUBLIC_PATHS = {"/v1/health", "/v1/openapi.json"}
-PARTNER_ALLOWED = ("ask", "search", "rules", "parts", "amendments", "calc/", "summaries/", "health", "feedback")
+PARTNER_ALLOWED = ("ask", "search", "rules", "parts", "amendments", "calc/", "summaries/", "health", "feedback", "llm/test")
 ADMIN_ONLY = ("eval/run",)
 
 _buckets: dict[str, deque] = defaultdict(deque)
@@ -117,9 +117,11 @@ async def proxy(path: str, request: Request):
             pass
     t0 = time.perf_counter()
     try:
+        fwd = {"content-type": request.headers.get("content-type", "application/json"), "x-request-id": rid}
+        # bring-your-own-key headers pass straight through to the backend; the gateway never logs them
+        fwd.update({k: v for k, v in request.headers.items() if k.lower().startswith("x-bvs-")})
         upstream = await _client.request(request.method, f"/api/{path}", params=request.query_params,
-                                         content=body, headers={"content-type": request.headers.get("content-type", "application/json"),
-                                                                "x-request-id": rid})
+                                         content=body, headers=fwd)
     except httpx.HTTPError as exc:
         _usage[name]["errors"] += 1
         return JSONResponse({"error": "upstream_unavailable", "detail": str(exc)[:200]}, 502, headers={"X-Request-ID": rid})

@@ -38,3 +38,15 @@ pre.code { background:#0b1020; color:#e2e8f0; padding:1rem; border-radius:.9rem;
 .rule-text { white-space: pre-wrap; font-family:'JetBrains Mono', monospace; font-size:.78rem; line-height:1.45; }
 .step { display:flex; gap:.5rem; align-items:center; font-size:.75rem; padding:.3rem 0; }
 body.embed aside, body.embed header { display:none !important; }
+.hi-sub { display:block; font-size:.86em; opacity:.72; margin-top:.15rem; font-family:'Noto Sans Devanagari', Inter, sans-serif; }
+.hi { font-family:'Noto Sans Devanagari', Inter, sans-serif; }
+.nav-group { font-size:.65rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; padding:.9rem .8rem .3rem; }
+.lang-btn { flex:1; border:1px solid rgba(15,23,42,.12); border-radius:.5rem; padding:.35rem 0; }
+.dark .lang-btn { border-color: rgba(255,255,255,.14); }
+.lang-btn.on, .chip-on { background:#1a68e6 !important; color:white !important; border-color:#1a68e6 !important; }
+.step-num { width:1.7rem; height:1.7rem; border-radius:999px; display:grid; place-items:center; color:white; font-weight:700; font-size:.8rem; background: var(--grad); flex-shrink:0; }
+.task-tile { display:flex; gap:.8rem; align-items:flex-start; padding:.9rem; border-radius:1rem; border:1px solid rgba(15,23,42,.07); transition: all .15s; }
+.task-tile:hover { border-color:#2f86ff; background: rgba(47,134,255,.05); transform: translateY(-1px); }
+.dark .task-tile { border-color: rgba(255,255,255,.08); }
+.help-banner { background: linear-gradient(90deg, rgba(47,134,255,.08), rgba(255,159,28,.06)); }
+select.input { appearance:auto; }

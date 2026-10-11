@@ -12,12 +12,32 @@ from pydantic import BaseModel, Field
 
 from . import calculators, config, evals, metrics
 from .agents import answer_question, load_amendments
-from .llm import LLMUnavailable, get_chain
+from .llm import LLMUnavailable, get_chain, overrides_from_headers, reset_overrides, set_overrides
 from .store import get_store
 
 app = FastAPI(title="Bhumi Vikas Sahayak – Backend", version="1.0.0",
               description="Rule-grounded answers on the M.P. Bhumi Vikas Rules, 2012 for BMC building-permission clerks.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+class BYOKMiddleware:
+    """Pure ASGI middleware: lifts X-BVS-* provider-key headers into a request-scoped context variable."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        headers = {k.decode().lower(): v.decode(errors="ignore") for k, v in scope.get("headers", [])}
+        token = set_overrides(overrides_from_headers(headers))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            reset_overrides(token)
+
+
+app.add_middleware(BYOKMiddleware)
 
 _summary_cache: dict[str, dict] = {}
 
@@ -52,6 +72,40 @@ def ask(body: AskIn):
     res = answer_question(body.question.strip(), body.language, body.use_llm)
     res["query_id"] = metrics.log_query(res, body.client)
     return res
+
+
+class LLMTestIn(BaseModel):
+    providers: list[str] = Field(default_factory=lambda: ["cerebras", "anthropic", "openai_compat"])
+
+
+@app.post("/api/llm/test")
+def llm_test(body: LLMTestIn):
+    """Check each provider with a one-word prompt, using the caller's own keys when sent (Settings page)."""
+    chain = get_chain()
+    out = []
+    for name in body.providers:
+        if name not in chain.state:
+            continue
+        r = chain.resolve(name)
+        if not r["key"]:
+            out.append({"provider": name, "ok": False, "source": "none", "message": "No key set"})
+            continue
+        try:
+            resp = chain.complete("Reply with the single word OK.", "Say OK.", max_tokens=8, only=[name])
+            out.append({"provider": name, "ok": True, "source": "your key" if r["byok"] else "server",
+                        "model": resp.model, "latency_ms": round(resp.latency_ms), "message": "Connected"})
+        except LLMUnavailable as exc:
+            msg = str(exc)
+            if "401" in msg or "403" in msg:
+                msg = "Key rejected by the provider (401/403). Check that it was copied fully. · कुंजी अस्वीकार हुई, पूरी कॉपी करके दोबारा डालें।"
+            elif "404" in msg:
+                msg = "Model not available for this key (404). Pick another model. · यह मॉडल उपलब्ध नहीं, दूसरा चुनें।"
+            elif "429" in msg:
+                msg = "Rate limit reached (429). Wait a minute and retry. · सीमा पूरी, एक मिनट बाद फिर कोशिश करें।"
+            else:
+                msg = msg[:240]
+            out.append({"provider": name, "ok": False, "source": "your key" if r["byok"] else "server", "message": msg})
+    return {"results": out}
 
 
 @app.post("/api/feedback")
@@ -113,8 +167,10 @@ def summarize_rule(rule_id: str, language: str = "en"):
     if not r:
         raise HTTPException(404, "rule not found")
     ck = f"{r.rule}:{language}"
-    if ck in _summary_cache:
-        return _summary_cache[ck]
+    hit = _summary_cache.get(ck)
+    # an AI summary is reused by everyone; an offline one is retried as soon as an AI key is available
+    if hit and (hit["provider"] != "offline" or not get_chain().any_available):
+        return hit
     text = r.clean_text[:9000]
     out = None
     chain = get_chain()

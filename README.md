@@ -30,6 +30,12 @@ uvicorn gateway.app.main:app --port 8080      # open http://localhost:8080
 Docker: `docker build -t bvs . && docker run -p 8080:8080 --env-file .env bvs`. Split services: `docker compose up`.
 It runs **with no API key at all** (offline mode: calculators plus verified extractive answers).
 
+## Settings, your own AI key, and the built-in guide
+
+- **⚙️ Settings & API keys**: paste a Cerebras key (recommended), plus optional Anthropic or OpenAI-compatible backups, pick the model and fallback order, then click **Save & test connection**. Keys stay in your browser (session-only unless you tick *Remember*). They are sent only with your own requests as `X-BVS-*` headers, used for that one request, and never stored or logged by the server. With no key at all, the app runs in offline mode and still answers with citations.
+- **🧭 How to use / उपयोग गाइड**: an "I want to… → go here" task map, every page explained, how to read an answer card, 4-step AI setup, and an FAQ, all in English and Hindi.
+- Every page opens with a dismissible bilingual 💡 tip. A first-visit welcome tour explains the app in 3 steps. EN / हिं / EN+हिं buttons switch the interface language.
+
 ## What's inside
 | Layer | What it does |
 |---|---|

@@ -15,10 +15,50 @@ const SAMPLES = [
   'How do I pay my property tax online?',
 ];
 
+/* ---------------- settings (stored only in this browser) ---------------- */
+const SETTINGS_KEY = 'bvs-settings';
+const DEFAULT_SETTINGS = {
+  remember: false, uiLang: 'both', aiDefault: true, gatewayKey: '',
+  cerebrasKey: '', cerebrasModel: 'gpt-oss-120b', anthropicKey: '', anthropicModel: 'claude-sonnet-4-5',
+  openaiKey: '', openaiBase: 'https://api.openai.com/v1', openaiModel: 'gpt-4o-mini',
+  order: 'cerebras,anthropic,openai_compat',
+};
+function loadSettings() {
+  const raw = localStorage.getItem(SETTINGS_KEY) || sessionStorage.getItem(SETTINGS_KEY);
+  try { return { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) }; } catch { return { ...DEFAULT_SETTINGS }; }
+}
+let SETTINGS = loadSettings();
+function saveSettings(next) {
+  SETTINGS = { ...SETTINGS, ...next };
+  const raw = JSON.stringify(SETTINGS);
+  localStorage.removeItem(SETTINGS_KEY); sessionStorage.removeItem(SETTINGS_KEY);
+  (SETTINGS.remember ? localStorage : sessionStorage).setItem(SETTINGS_KEY, raw);
+  // the language choice is not a secret: keep it across sessions either way
+  localStorage.setItem('bvs-ui-lang', SETTINGS.uiLang);
+}
+if (localStorage.getItem('bvs-ui-lang')) SETTINGS.uiLang = localStorage.getItem('bvs-ui-lang');
+function byokHeaders() {
+  const h = {}, S = SETTINGS;
+  if (S.cerebrasKey) { h['X-BVS-Cerebras-Key'] = S.cerebrasKey; if (S.cerebrasModel) h['X-BVS-Cerebras-Model'] = S.cerebrasModel; }
+  if (S.anthropicKey) { h['X-BVS-Anthropic-Key'] = S.anthropicKey; if (S.anthropicModel) h['X-BVS-Anthropic-Model'] = S.anthropicModel; }
+  if (S.openaiKey) { h['X-BVS-OpenAI-Key'] = S.openaiKey; h['X-BVS-OpenAI-Base'] = S.openaiBase; h['X-BVS-OpenAI-Model'] = S.openaiModel; }
+  if (S.order && S.order !== DEFAULT_SETTINGS.order) h['X-BVS-Provider-Order'] = S.order;
+  return h;
+}
+const hasOwnKey = () => !!(SETTINGS.cerebrasKey || SETTINGS.anthropicKey || SETTINGS.openaiKey);
+
+/* bilingual text helper: uiLang = 'en' | 'hi' | 'both' */
+function t(en, hi) {
+  const L = SETTINGS.uiLang;
+  if (L === 'en') return en;
+  if (L === 'hi') return `<span class="hi">${hi}</span>`;
+  return `${en}<span class="hi-sub">${hi}</span>`;
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(CFG.apiBase + path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', 'X-API-Key': CFG.apiKey, ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': SETTINGS.gatewayKey || CFG.apiKey, ...byokHeaders(), ...(opts.headers || {}) },
   });
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   const ct = res.headers.get('content-type') || '';
@@ -29,24 +69,75 @@ const fmt = (n) => (n == null ? '–' : Number(n).toLocaleString('en-IN'));
 
 /* ---------------- shell ---------------- */
 const ROUTES = {
-  ask: ['Ask the rulebook', renderAsk],
-  dashboard: ['Dashboard', renderDashboard],
-  rules: ['Rule explorer', renderRules],
-  calculators: ['Calculators', renderCalculators],
-  summaries: ['Summaries', renderSummaries],
-  reports: ['Reports & accuracy', renderReports],
-  integrate: ['API & integrate', renderIntegrate],
+  ask: ['Ask the rulebook', renderAsk, 'नियम पूछें', '💬'],
+  dashboard: ['Dashboard', renderDashboard, 'डैशबोर्ड', '📊'],
+  rules: ['Rule explorer', renderRules, 'नियम खोजें', '📚'],
+  calculators: ['Calculators', renderCalculators, 'कैलकुलेटर', '🧮'],
+  summaries: ['Summaries', renderSummaries, 'सारांश', '📝'],
+  reports: ['Reports & accuracy', renderReports, 'रिपोर्ट व सटीकता', '📈'],
+  integrate: ['API & integrate', renderIntegrate, 'API व जोड़ें', '🔌'],
+  settings: ['Settings & API keys', renderSettings, 'सेटिंग्स व API कुंजी', '⚙️'],
+  guide: ['How to use', renderGuide, 'उपयोग गाइड', '🧭'],
 };
+
+/* one-line help shown at the top of every page (dismissible), in English and Hindi */
+const PAGE_HELP = {
+  ask: ['Type a question in English or Hindi, or tap a sample. The answer shows the rule number, the PDF page and the exact quote. Green “✓ verified quote” means the text was matched word-for-word in the rulebook.',
+        'अंग्रेज़ी या हिंदी में सवाल लिखें या कोई नमूना सवाल चुनें। जवाब में नियम संख्या, PDF पेज और नियम का असली पाठ दिखेगा। हरा “✓ verified quote” मतलब पाठ नियम-पुस्तिका से शब्दशः मिलाया गया है।'],
+  dashboard: ['Live usage: how many questions, how many answered vs “not found”, which language, which AI provider answered, and which rules are asked about most.',
+              'लाइव उपयोग: कितने सवाल आए, कितनों का जवाब मिला और कितने “नियम में नहीं”, कौन सी भाषा, किस AI ने जवाब दिया, और कौन से नियम सबसे ज़्यादा पूछे गए।'],
+  rules: ['Browse all 106 rules or search a word (e.g. “balcony”, “fee”). Click a rule to read its full text, its PDF page and any later amendment.',
+          'सभी 106 नियम देखें या कोई शब्द खोजें (जैसे “balcony”, “fee”)। किसी नियम पर क्लिक करें: पूरा पाठ, PDF पेज और बाद का संशोधन दिखेगा।'],
+  calculators: ['Enter the street width, plot area or built-up area to get the exact open space or fee from the rule tables. No AI is used, so numbers are always the table value.',
+                'सड़क की चौड़ाई, प्लॉट या निर्मित क्षेत्रफल डालें: नियम-तालिका से सटीक खुली जगह या फीस मिलेगी। इसमें AI का उपयोग नहीं होता, इसलिए संख्या हमेशा तालिका वाली ही होगी।'],
+  summaries: ['Pick a rule and a language to get a short plain-language summary with its key numbers. With an AI key it is written by the AI; without one it is extracted from the text.',
+              'नियम और भाषा चुनें: मुख्य संख्याओं के साथ आसान भाषा में छोटा सारांश मिलेगा। AI कुंजी हो तो AI लिखता है, नहीं तो पाठ से निकाला जाता है।'],
+  reports: ['Accuracy on the 17 official sample questions, plus questions that were not found or low-confidence. Run the evaluation again or download all questions as CSV.',
+            '17 आधिकारिक नमूना सवालों पर सटीकता, साथ में “नहीं मिला” और कम-भरोसे वाले सवाल। मूल्यांकन दोबारा चलाएं या सभी सवाल CSV में डाउनलोड करें।'],
+  integrate: ['For other portals and developers: copy the cURL / JavaScript example or the one-line widget, and test the public API live.',
+              'दूसरे पोर्टल और डेवलपर के लिए: cURL / JavaScript उदाहरण या एक-लाइन विजेट कॉपी करें और पब्लिक API को लाइव जांचें।'],
+  settings: ['Add your own AI key (Cerebras recommended) so answers are written by AI. Keys stay in this browser and are sent only with your own requests.',
+             'अपनी AI कुंजी (Cerebras सुझाई गई) डालें ताकि जवाब AI लिखे। कुंजी सिर्फ़ इसी ब्राउज़र में रहती है और केवल आपके अपने अनुरोधों के साथ भेजी जाती है।'],
+  guide: ['Everything this app can do, where to click for it, and how to read the results.', 'यह ऐप क्या-क्या कर सकता है, किस काम के लिए कहाँ जाएं, और नतीजे कैसे पढ़ें।'],
+};
+function helpBanner(route) {
+  const h = PAGE_HELP[route];
+  if (!h || localStorage.getItem('bvs-hide-help-' + route)) return '';
+  return `<div class="help-banner card p-4 mb-5 flex gap-3 items-start" id="help-banner">
+    <div class="text-xl">💡</div>
+    <div class="flex-1 text-sm leading-relaxed">${t(h[0], h[1])}
+      ${route !== 'guide' ? `<a href="#/guide" class="block mt-1 text-xs underline text-brand-600 dark:text-brand-300">${t('Full guide →', 'पूरी गाइड →')}</a>` : ''}</div>
+    <button class="text-slate-400 hover:text-slate-600 text-lg leading-none" title="Hide" data-hide-help="${route}">×</button>
+  </div>`;
+}
 
 function router() {
   charts.splice(0).forEach((c) => c.destroy());
   const [route, arg] = (location.hash.replace(/^#\/?/, '') || 'ask').split('/');
-  const [title, fn] = ROUTES[route] || ROUTES.ask;
-  $('#page-title').textContent = title;
-  document.querySelectorAll('.nav-link').forEach((a) => a.classList.toggle('active', a.dataset.route === route));
+  const r = ROUTES[route] ? route : 'ask';
+  const [title, fn, titleHi] = ROUTES[r];
+  $('#page-title').innerHTML = SETTINGS.uiLang === 'hi' ? titleHi : SETTINGS.uiLang === 'en' ? title : `${title} <span class="text-slate-400 font-normal text-sm">· ${titleHi}</span>`;
+  document.querySelectorAll('.nav-link').forEach((a) => a.classList.toggle('active', a.dataset.route === r));
   view.innerHTML = '';
   view.className = 'px-4 md:px-8 py-6 max-w-7xl mx-auto fade-in';
-  fn(arg ? decodeURIComponent(arg) : undefined);
+  Promise.resolve(fn(arg ? decodeURIComponent(arg) : undefined)).finally(() => {
+    const banner = helpBanner(r);
+    if (banner) {
+      view.insertAdjacentHTML('afterbegin', banner);
+      const b = view.querySelector('[data-hide-help]');
+      if (b) b.onclick = () => { localStorage.setItem('bvs-hide-help-' + r, '1'); $('#help-banner').remove(); };
+    }
+  });
+}
+function renderNav() {
+  const groups = [['Use', 'उपयोग', ['ask', 'rules', 'calculators', 'summaries']], ['Monitor', 'निगरानी', ['dashboard', 'reports']],
+                  ['Set up', 'सेटअप', ['settings', 'integrate', 'guide']]];
+  const html = groups.map(([g, gh, items]) => `<div class="nav-group">${SETTINGS.uiLang === 'hi' ? gh : g}${SETTINGS.uiLang === 'both' ? ' · ' + gh : ''}</div>` +
+    items.map((k) => { const [en, , hi, ic] = ROUTES[k];
+      return `<a href="#/${k}" data-route="${k}" class="nav-link"><span>${ic}</span><span class="leading-4">${SETTINGS.uiLang === 'hi' ? hi : en}${SETTINGS.uiLang === 'both' ? `<span class="block text-[11px] opacity-70 font-normal">${hi}</span>` : ''}</span></a>`; }).join('')).join('');
+  $('#nav').innerHTML = html;
+  $('#mobile-nav-inner').innerHTML = html;
+  document.querySelectorAll('[data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === SETTINGS.uiLang));
 }
 window.addEventListener('hashchange', router);
 
@@ -59,11 +150,37 @@ function initShell() {
     localStorage.setItem('bvs-theme', d ? 'dark' : 'light');
     router();
   };
-  $('#mobile-nav-inner').innerHTML = $('#nav').innerHTML;
+  renderNav();
+  document.querySelectorAll('[data-lang]').forEach((b) => (b.onclick = () => { saveSettings({ uiLang: b.dataset.lang }); renderNav(); router(); }));
   $('#menu-btn').onclick = () => $('#mobile-nav').classList.remove('hidden');
+  $('#help-btn').onclick = () => (location.hash = '#/guide');
   refreshHealth();
   setInterval(refreshHealth, 30000);
   router();
+  if (!localStorage.getItem('bvs-welcomed')) showWelcome();
+}
+
+function showWelcome() {
+  const steps = [
+    ['💬', 'Ask', 'पूछें', 'Type a building-rule question in English or Hindi on “Ask the rulebook”.', '“नियम पूछें” पेज पर अंग्रेज़ी या हिंदी में भवन-नियम का सवाल लिखें।'],
+    ['📑', 'Check the rule', 'नियम जांचें', 'Every answer shows the rule number, PDF page and exact quote. Click the rule badge or “PDF p.” to verify.', 'हर जवाब में नियम संख्या, PDF पेज और असली पाठ होता है। जांचने के लिए नियम बैज या “PDF p.” पर क्लिक करें।'],
+    ['⚙️', 'Turn on AI (optional)', 'AI चालू करें (वैकल्पिक)', 'Add a free Cerebras key in Settings for fuller AI-written answers. Without it the app still answers from the rules and calculators.', 'पूरे AI जवाबों के लिए सेटिंग्स में मुफ़्त Cerebras कुंजी डालें। इसके बिना भी ऐप नियमों और कैलकुलेटर से जवाब देता है।'],
+  ];
+  const el = document.createElement('div');
+  el.id = 'welcome';
+  el.className = 'fixed inset-0 z-50 grid place-items-center bg-black/50 p-4';
+  el.innerHTML = `<div class="card bg-white dark:bg-ink max-w-lg w-full p-6 fade-in">
+    <div class="flex items-center gap-3"><div class="logo h-10 w-10 rounded-xl grid place-items-center text-white font-extrabold">भू</div>
+      <div><div class="font-extrabold text-lg">Welcome · स्वागत है</div><div class="text-xs text-slate-500">Bhumi Vikas Sahayak in 3 steps · 3 कदमों में</div></div></div>
+    <ol class="mt-5 space-y-4">${steps.map(([ic, en, hi, d, dh], i) => `<li class="flex gap-3"><div class="step-num">${i + 1}</div><div>
+      <div class="font-semibold">${ic} ${en} · ${hi}</div><div class="text-sm text-slate-600 dark:text-slate-300">${d}</div><div class="text-sm text-slate-500 hi">${dh}</div></div></li>`).join('')}</ol>
+    <div class="mt-6 flex flex-wrap gap-2 justify-end">
+      <button class="btn btn-ghost" data-w="guide">🧭 Full guide · पूरी गाइड</button>
+      <button class="btn btn-ghost" data-w="settings">⚙️ Add AI key · कुंजी डालें</button>
+      <button class="btn btn-primary" data-w="ask">Start asking · शुरू करें</button>
+    </div></div>`;
+  document.body.append(el);
+  el.querySelectorAll('[data-w]').forEach((b) => (b.onclick = () => { localStorage.setItem('bvs-welcomed', '1'); el.remove(); location.hash = '#/' + b.dataset.w; }));
 }
 
 async function refreshHealth() {
@@ -72,8 +189,9 @@ async function refreshHealth() {
     const live = h.providers.find((p) => p.configured && p.status === 'up' && p.name !== 'offline');
     $('#health-text').textContent = `${h.rules} rules · ${live ? live.name : 'offline mode'}`;
     $('.dot').className = 'dot up';
-    $('#provider-pill').innerHTML = `<div class="font-semibold mb-1">AI providers</div>` + h.providers.map((p) =>
-      `<div class="flex items-center justify-between py-0.5"><span>${p.name}</span><span class="badge ${badgeColor(p.status)}">${p.status.replace('_', ' ')}</span></div>`).join('');
+    $('#provider-pill').innerHTML = `<div class="font-semibold mb-1">AI providers · AI सेवाएं</div>` + h.providers.map((p) =>
+      `<div class="flex items-center justify-between py-0.5"><span>${p.name}${p.source === 'your key' ? ' <span class="text-[10px] text-brand-600 dark:text-brand-300">(your key)</span>' : ''}</span><span class="badge ${badgeColor(p.status)}">${p.status.replace('_', ' ')}</span></div>`).join('') +
+      (live ? '' : `<a href="#/settings" class="block mt-2 text-[11px] underline text-brand-600 dark:text-brand-300">+ Add an AI key · AI कुंजी जोड़ें</a>`);
   } catch (e) {
     $('#health-text').textContent = 'API unreachable';
     $('.dot').className = 'dot down';
@@ -103,12 +221,19 @@ function renderAsk() {
       <textarea id="q" rows="2" class="input flex-1 resize-none" placeholder="e.g. My plot is 200 sq m on a 9 m road. How much gap at the front, and what fee?"></textarea>
       <div class="flex md:flex-col gap-2">
         <button class="btn btn-primary justify-center flex-1" type="submit">Ask ↵</button>
-        <label class="text-xs flex items-center gap-2 justify-center"><input type="checkbox" id="use-llm" checked> AI composer</label>
+        <label class="text-xs flex items-center gap-2 justify-center"><input type="checkbox" id="use-llm" ${SETTINGS.aiDefault ? 'checked' : ''}> AI composer</label>
       </div>
     </form>
     <div class="mt-4 flex flex-wrap gap-2" id="samples">${SAMPLES.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s.length > 70 ? s.slice(0, 68) + '…' : s)}</button>`).join('')}</div>
   </div>
+  <div id="ai-hint"></div>
   <div id="answers" class="space-y-5"></div>`;
+  api('/health').then((h) => {
+    const live = h.providers.some((p) => p.configured && p.status === 'up' && p.name !== 'offline');
+    if (!live) $('#ai-hint').innerHTML = `<div class="card p-4 mb-5 text-sm flex flex-wrap items-center gap-3 border-amber-200">
+      <span>🔌 ${t('Running in offline mode: answers come from rule text and calculators only.', 'ऑफ़लाइन मोड: जवाब सिर्फ़ नियम-पाठ और कैलकुलेटर से।')}</span>
+      <a href="#/settings" class="btn btn-ghost ml-auto">⚙️ ${t('Add AI key', 'AI कुंजी डालें')}</a></div>`;
+  }).catch(() => {});
   api('/eval').then((r) => { if (r.accuracy != null) $('#acc-mini').textContent = Math.round(r.accuracy * 100) + '%'; }).catch(() => {});
   $('#samples').onclick = (e) => { const b = e.target.closest('.chip'); if (b) { $('#q').value = b.dataset.q; ask(); } };
   $('#ask-form').onsubmit = (e) => { e.preventDefault(); ask(); };
@@ -435,6 +560,186 @@ console.log(r.answer, r.citations);</pre></div>
     const { trace, ...rest } = r;
     $('#try-out').textContent = JSON.stringify(rest, null, 2);
   };
+}
+
+/* ---------------- Settings ---------------- */
+function renderSettings() {
+  const S = SETTINGS;
+  const field = (id, label, labelHi, val, opts = {}) => `<label class="block">
+      <span class="text-sm font-semibold">${label}</span> <span class="text-xs text-slate-500 hi">${labelHi}</span>
+      <div class="relative mt-1"><input id="${id}" class="input pr-20 ${opts.mono ? 'font-mono text-sm' : ''}" type="${opts.secret ? 'password' : 'text'}" value="${esc(val)}" placeholder="${esc(opts.ph || '')}" autocomplete="off" spellcheck="false">
+      ${opts.secret ? `<button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs btn-ghost rounded-lg px-2 py-1" data-reveal="${id}">Show</button>` : ''}</div>
+      ${opts.help ? `<span class="text-xs text-slate-500 mt-1 block">${opts.help}</span>` : ''}</label>`;
+  view.innerHTML = `<div class="grid lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 space-y-4">
+      <div class="card p-5">
+        <div class="flex items-center gap-2"><div class="text-lg">⚡</div><div class="font-semibold">Cerebras <span class="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">${t('Recommended · fastest', 'सुझाया गया · सबसे तेज़')}</span></div></div>
+        <p class="text-xs text-slate-500 mt-1">${t('Get a free key: cloud.cerebras.ai → sign in → API Keys → Create. It starts with “csk-”.', 'मुफ़्त कुंजी: cloud.cerebras.ai → साइन इन → API Keys → Create। यह “csk-” से शुरू होती है।')}</p>
+        <div class="grid md:grid-cols-[1fr,220px] gap-3 mt-3">
+          ${field('cerebrasKey', 'API key', 'API कुंजी', S.cerebrasKey, { secret: true, mono: true, ph: 'csk-…' })}
+          <label class="block"><span class="text-sm font-semibold">Model</span> <span class="text-xs text-slate-500 hi">मॉडल</span>
+            <select id="cerebrasModel" class="input mt-1">${['gpt-oss-120b', 'llama-3.3-70b', 'qwen-3-32b', 'llama3.1-8b'].map((m) => `<option ${m === S.cerebrasModel ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+        </div>
+      </div>
+      <details class="card p-5" ${S.anthropicKey || S.openaiKey ? 'open' : ''}>
+        <summary class="font-semibold cursor-pointer select-none">🛟 ${t('Backup providers (optional)', 'बैकअप सेवाएं (वैकल्पिक)')}</summary>
+        <p class="text-xs text-slate-500 mt-1">${t('Used automatically, in order, when Cerebras fails or is slow.', 'Cerebras फ़ेल या धीमा होने पर क्रम से अपने-आप उपयोग होंगी।')}</p>
+        <div class="grid md:grid-cols-[1fr,220px] gap-3 mt-4">
+          ${field('anthropicKey', 'Anthropic (Claude) key', 'Anthropic कुंजी', S.anthropicKey, { secret: true, mono: true, ph: 'sk-ant-…' })}
+          ${field('anthropicModel', 'Model', 'मॉडल', S.anthropicModel, { mono: true })}
+        </div>
+        <div class="grid md:grid-cols-3 gap-3 mt-4">
+          ${field('openaiKey', 'OpenAI-compatible key', 'OpenAI-संगत कुंजी', S.openaiKey, { secret: true, mono: true, ph: 'sk-…' })}
+          ${field('openaiBase', 'Base URL (https)', 'बेस URL', S.openaiBase, { mono: true, help: 'OpenAI, Groq, OpenRouter…' })}
+          ${field('openaiModel', 'Model', 'मॉडल', S.openaiModel, { mono: true })}
+        </div>
+        <label class="block mt-4"><span class="text-sm font-semibold">${t('Fallback order', 'फ़ॉलबैक क्रम')}</span>
+          <select id="order" class="input mt-1">${['cerebras,anthropic,openai_compat', 'cerebras,openai_compat,anthropic', 'anthropic,cerebras,openai_compat', 'openai_compat,cerebras,anthropic'].map((o) => `<option value="${o}" ${o === S.order ? 'selected' : ''}>${o.replaceAll(',', ' → ')} → offline</option>`).join('')}</select></label>
+      </details>
+      <details class="card p-5" ${S.gatewayKey ? 'open' : ''}>
+        <summary class="font-semibold cursor-pointer select-none">🔑 ${t('Gateway API key (partners & admins)', 'गेटवे API कुंजी (पार्टनर व एडमिन)')}</summary>
+        <p class="text-xs text-slate-500 mt-1">${t('Leave empty to use the built-in web key. Enter a partner or admin key to test exactly what that portal sees.', 'खाली छोड़ें तो वेब की अपनी कुंजी लगेगी। किसी पार्टनर/एडमिन कुंजी से जांचें कि वह पोर्टल क्या देखता है।')}</p>
+        <div class="mt-3">${field('gatewayKey', 'X-API-Key', 'X-API-Key', S.gatewayKey, { secret: true, mono: true, ph: 'bvs-demo-key' })}</div>
+      </details>
+      <div class="card p-5 space-y-3">
+        <div class="font-semibold">🎛 ${t('Preferences', 'पसंद')}</div>
+        <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="aiDefault" ${S.aiDefault ? 'checked' : ''}> ${t('Use AI composer by default on Ask', 'Ask पेज पर AI composer डिफ़ॉल्ट चालू रखें')}</label>
+        <label class="flex items-center gap-3 text-sm"><input type="checkbox" id="remember" ${S.remember ? 'checked' : ''}> ${t('Remember my keys on this device (otherwise they are cleared when this tab closes)', 'इस डिवाइस पर कुंजी याद रखें (नहीं तो टैब बंद होते ही हट जाएंगी)')}</label>
+        <div class="text-sm">${t('Interface language', 'इंटरफ़ेस भाषा')}:
+          <span class="inline-flex gap-1 ml-2">${[['en', 'English'], ['hi', 'हिंदी'], ['both', 'Both · दोनों']].map(([k, l]) => `<button type="button" class="chip ${S.uiLang === k ? 'chip-on' : ''}" data-setlang="${k}">${l}</button>`).join('')}</span></div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="save" class="btn btn-primary">💾 ${t('Save', 'सेव करें')}</button>
+        <button id="test" class="btn btn-ghost">🧪 ${t('Save & test connection', 'सेव करके जांचें')}</button>
+        <button id="clear" class="btn btn-ghost text-rose-600">🗑 ${t('Remove all keys', 'सभी कुंजी हटाएं')}</button>
+        <span id="save-msg" class="text-sm text-emerald-600 self-center"></span>
+      </div>
+      <div id="test-out" class="space-y-2"></div>
+    </div>
+    <div class="space-y-4">
+      <div class="card p-5 text-sm space-y-2">
+        <div class="font-semibold">🔒 ${t('Where do my keys go?', 'मेरी कुंजी कहाँ जाती है?')}</div>
+        <p>${t('Keys are saved only in this browser. They travel with your own requests (as X-BVS-* headers) to this app’s server, which uses them for that one request and never stores or logs them.', 'कुंजी सिर्फ़ इसी ब्राउज़र में सेव होती है। यह आपके अनुरोध के साथ (X-BVS-* हेडर में) सर्वर तक जाती है, जो उसे सिर्फ़ उसी अनुरोध के लिए उपयोग करता है: न सेव करता है, न लॉग।')}</p>
+        <p class="text-xs text-slate-500">${t('On a shared counter computer, leave “Remember” off and click “Remove all keys” when done.', 'साझा कंप्यूटर पर “याद रखें” बंद रखें और काम के बाद “सभी कुंजी हटाएं” दबाएं।')}</p>
+      </div>
+      <div class="card p-5 text-sm space-y-2">
+        <div class="font-semibold">🧭 ${t('How answers are made', 'जवाब कैसे बनते हैं')}</div>
+        <ol class="list-decimal pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+          <li>${t('Numbers from tables are always calculated in code.', 'तालिका की संख्याएं हमेशा कोड से गणना होती हैं।')}</li>
+          <li>${t('The AI only words the answer, using retrieved rule text.', 'AI सिर्फ़ मिले हुए नियम-पाठ से जवाब के शब्द लिखता है।')}</li>
+          <li>${t('Every quote is checked against the rulebook before you see it.', 'हर उद्धरण दिखाने से पहले नियम-पुस्तिका से मिलाया जाता है।')}</li>
+          <li>${t('No key or AI down → offline mode still answers with citations.', 'कुंजी नहीं या AI बंद → ऑफ़लाइन मोड फिर भी हवाले के साथ जवाब देता है।')}</li>
+        </ol>
+      </div>
+      <div class="card p-5 text-sm"><div class="font-semibold mb-2">📡 ${t('Live provider status', 'लाइव सेवा स्थिति')}</div><div id="set-health" class="space-y-1"></div></div>
+    </div>
+  </div>`;
+  const ids = ['cerebrasKey', 'cerebrasModel', 'anthropicKey', 'anthropicModel', 'openaiKey', 'openaiBase', 'openaiModel', 'order', 'gatewayKey'];
+  const collect = () => ({ ...Object.fromEntries(ids.map((i) => [i, $('#' + i).value.trim()])), aiDefault: $('#aiDefault').checked, remember: $('#remember').checked });
+  const flash = (m) => { $('#save-msg').textContent = m; setTimeout(() => { if ($('#save-msg')) $('#save-msg').textContent = ''; }, 3000); };
+  const showHealth = () => api('/health').then((h) => { $('#set-health').innerHTML = h.providers.map((p) => `<div class="flex justify-between"><span>${p.name} <span class="text-[11px] text-slate-400">${p.source || ''}</span></span><span class="badge ${badgeColor(p.status)}">${p.status.replace('_', ' ')}</span></div>`).join(''); }).catch(() => {});
+  view.querySelectorAll('[data-reveal]').forEach((b) => (b.onclick = () => { const i = $('#' + b.dataset.reveal); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? 'Show' : 'Hide'; }));
+  view.querySelectorAll('[data-setlang]').forEach((b) => (b.onclick = () => { saveSettings({ ...collect(), uiLang: b.dataset.setlang }); renderNav(); router(); }));
+  $('#save').onclick = () => {
+    const c = collect();
+    if (c.openaiKey && !/^https:\/\//.test(c.openaiBase)) { flash(''); $('#test-out').innerHTML = `<div class="card p-3 text-sm text-rose-600">Base URL must start with https://</div>`; return; }
+    saveSettings(c); flash('✓ ' + (SETTINGS.uiLang === 'hi' ? 'सेव हो गया' : 'Saved')); refreshHealth(); showHealth();
+  };
+  $('#test').onclick = async () => {
+    saveSettings(collect()); refreshHealth();
+    $('#test-out').innerHTML = `<div class="card p-4 text-sm"><div class="skeleton h-4 w-1/2"></div></div>`;
+    try {
+      const r = await api('/llm/test', { method: 'POST', body: '{}' });
+      $('#test-out').innerHTML = r.results.map((x) => `<div class="card p-3 text-sm flex flex-wrap items-center gap-3">
+        <span class="text-lg">${x.ok ? '✅' : x.source === 'none' ? '⚪' : '❌'}</span><b>${esc(x.provider)}</b>
+        <span class="text-xs text-slate-500">${esc(x.source)}</span>
+        <span class="${x.ok ? 'text-emerald-600' : 'text-slate-500'}">${esc(x.ok ? `${x.message} · ${x.model} · ${x.latency_ms} ms` : x.message)}</span></div>`).join('');
+    } catch (e) { $('#test-out').innerHTML = `<div class="card p-3 text-sm text-rose-600">${esc(e.message)}</div>`; }
+    showHealth();
+  };
+  $('#clear').onclick = () => {
+    saveSettings({ cerebrasKey: '', anthropicKey: '', openaiKey: '', gatewayKey: '' });
+    localStorage.removeItem(SETTINGS_KEY); sessionStorage.removeItem(SETTINGS_KEY);
+    refreshHealth(); router();
+  };
+  showHealth();
+}
+
+/* ---------------- Guide ---------------- */
+function renderGuide() {
+  const tasks = [
+    ['Answer a citizen’s question at the counter', 'काउंटर पर नागरिक के सवाल का जवाब', 'ask', 'Type it (Hindi is fine) → read the answer → tap “Copy for citizen”.', 'सवाल लिखें (हिंदी चलेगी) → जवाब पढ़ें → “Copy for citizen” दबाएं।'],
+    ['Find the front / rear open space (setback)', 'आगे / पीछे की खुली जगह (सेटबैक)', 'calculators', 'Enter street width + height (front) or plot area (rear).', 'सड़क चौड़ाई + ऊंचाई (आगे) या प्लॉट क्षेत्रफल (पीछे) डालें।'],
+    ['Work out the building-permission fee', 'भवन अनुज्ञा फीस निकालें', 'calculators', 'Enter built-up area and choose residential or not.', 'निर्मित क्षेत्रफल डालें और आवासीय/अन्य चुनें।'],
+    ['Read the full text of a rule', 'किसी नियम का पूरा पाठ पढ़ें', 'rules', 'Search a word or rule number, then click the rule.', 'शब्द या नियम संख्या खोजें, फिर नियम पर क्लिक करें।'],
+    ['Check if a rule was amended', 'नियम में संशोधन हुआ या नहीं', 'rules', 'Open the rule: amendments show in an orange box with the date and source.', 'नियम खोलें: संशोधन नारंगी बॉक्स में तारीख और स्रोत के साथ दिखता है।'],
+    ['Get a short summary to brief someone', 'किसी को समझाने के लिए छोटा सारांश', 'summaries', 'Pick the rule and language → Summarise.', 'नियम और भाषा चुनें → Summarise।'],
+    ['See how much the tool is being used', 'टूल का कितना उपयोग हो रहा है', 'dashboard', 'Charts by day, language, provider and most-asked rules.', 'दिन, भाषा, सेवा और सबसे पूछे गए नियमों के चार्ट।'],
+    ['Prove the answers are accurate', 'जवाबों की सटीकता साबित करें', 'reports', 'See the score on 17 official questions; click “Run evaluation”.', '17 आधिकारिक सवालों पर स्कोर देखें; “Run evaluation” दबाएं।'],
+    ['Download all questions asked', 'पूछे गए सभी सवाल डाउनलोड करें', 'reports', 'Click “Export CSV”.', '“Export CSV” दबाएं।'],
+    ['Turn on AI answers / add my key', 'AI जवाब चालू करें / कुंजी डालें', 'settings', 'Paste your Cerebras key → “Save & test connection”.', 'Cerebras कुंजी डालें → “सेव करके जांचें”।'],
+    ['Connect another portal or app', 'दूसरे पोर्टल/ऐप को जोड़ें', 'integrate', 'Copy the API example or the one-line widget.', 'API उदाहरण या एक-लाइन विजेट कॉपी करें।'],
+  ];
+  const badges = [
+    ['<span class="badge bg-brand-600 text-white">Rule 56(1)(a)</span>', 'The rule the answer comes from. Click to open it.', 'जवाब किस नियम से है। खोलने के लिए क्लिक करें।'],
+    ['<span class="text-xs underline text-brand-600">PDF p.77 ↗</span>', 'Opens the official PDF at that page.', 'आधिकारिक PDF उसी पेज पर खुलेगी।'],
+    ['<span class="badge bg-emerald-100 text-emerald-700">✓ verified quote</span>', 'The quoted text was found word-for-word in the rulebook.', 'उद्धृत पाठ नियम-पुस्तिका में शब्दशः मिला।'],
+    ['<span class="badge bg-emerald-100 text-emerald-700">high confidence</span>', 'High = rule + number found; medium = related rule; low = check manually.', 'High = नियम और संख्या मिली; medium = संबंधित नियम; low = खुद जांचें।'],
+    ['<span class="badge bg-slate-800 text-white">NOT FOUND IN RULES</span>', 'The Rules do not cover this (e.g. property tax). Nothing is made up.', 'यह विषय नियमों में नहीं है (जैसे संपत्ति कर)। कुछ भी गढ़ा नहीं जाता।'],
+    ['<span class="badge bg-amber-100 text-amber-700">⚠ Amendment</span>', 'A later change affects this rule; read it before deciding.', 'बाद के संशोधन से यह नियम बदला है; निर्णय से पहले पढ़ें।'],
+    ['<span class="badge bg-slate-100">cerebras · gpt-oss-120b</span>', 'Which AI wrote the wording (or “offline”).', 'किस AI ने शब्द लिखे (या “offline”)।'],
+  ];
+  const faq = [
+    ['Is the AI deciding my case?', 'क्या AI मेरे मामले का फ़ैसला करता है?', 'No. It points to the rule; the officer decides. Numbers come from code, not from the AI.', 'नहीं। यह नियम बताता है, निर्णय अधिकारी लेते हैं। संख्याएं कोड से आती हैं, AI से नहीं।'],
+    ['Why does it say “offline mode”?', '“offline mode” क्यों दिख रहा है?', 'No AI key is set or the AI is down. Answers still come from rule text and calculators. Add a key in Settings.', 'AI कुंजी नहीं है या AI बंद है। जवाब फिर भी नियम-पाठ और कैलकुलेटर से आते हैं। सेटिंग्स में कुंजी डालें।'],
+    ['How current are the rules?', 'नियम कितने ताज़ा हैं?', 'Consolidated to 6 March 2025, plus tracked amendments such as 28 August 2026 (Rule 2(5)(c)), marked “verify with Gazette”.', '6 मार्च 2025 तक समेकित, साथ में ट्रैक किए संशोधन जैसे 28 अगस्त 2026 (नियम 2(5)(c)), “गज़ट से जांचें” चिह्नित।'],
+    ['Can I ask in Hindi?', 'क्या हिंदी में पूछ सकते हैं?', 'Yes. Ask in Hindi and the answer comes back in Hindi with the same rule citations.', 'हाँ। हिंदी में पूछें, जवाब हिंदी में उन्हीं नियम हवालों के साथ आएगा।'],
+    ['Is citizen data stored?', 'क्या नागरिक का डेटा सेव होता है?', 'Only the question text and answer metadata, for the dashboard. Do not type names, phone or Aadhaar numbers.', 'सिर्फ़ सवाल का पाठ और जवाब की जानकारी, डैशबोर्ड के लिए। नाम, फ़ोन या आधार नंबर न लिखें।'],
+  ];
+  view.innerHTML = `<div class="space-y-6">
+    <div class="card hero p-6"><h2 class="text-2xl font-extrabold tracking-tight">${t('How to use Bhumi Vikas Sahayak', 'भूमि विकास सहायक कैसे उपयोग करें')}</h2>
+      <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">${t('Pick what you want to do; the button takes you to the right page.', 'जो काम करना है चुनें; बटन आपको सही पेज पर ले जाएगा।')}</p>
+      <div class="mt-4 flex flex-wrap gap-2">${[['en', 'English'], ['hi', 'हिंदी'], ['both', 'Both · दोनों']].map(([k, l]) => `<button class="chip ${SETTINGS.uiLang === k ? 'chip-on' : ''}" data-setlang="${k}">${l}</button>`).join('')}</div></div>
+
+    <div class="card p-5"><div class="font-semibold mb-3">🎯 ${t('I want to… → go here', 'मुझे यह करना है… → यहाँ जाएं')}</div>
+      <div class="grid md:grid-cols-2 gap-3">${tasks.map(([en, hi, r, how, howHi]) => `<a href="#/${r}" class="task-tile">
+        <div class="text-2xl">${ROUTES[r][3]}</div><div class="flex-1"><div class="font-semibold text-sm">${t(en, hi)}</div>
+        <div class="text-xs text-slate-500 mt-1">${t(how, howHi)}</div></div>
+        <span class="badge bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300 self-center whitespace-nowrap">${SETTINGS.uiLang === 'hi' ? ROUTES[r][2] : ROUTES[r][0]} →</span></a>`).join('')}</div></div>
+
+    <div class="card p-5"><div class="font-semibold mb-3">🗺 ${t('Every page, explained', 'हर पेज की जानकारी')}</div>
+      <div class="grid md:grid-cols-3 gap-3">${Object.keys(PAGE_HELP).filter((k) => k !== 'guide').map((k) => `<a href="#/${k}" class="rounded-xl p-4 bg-slate-50 dark:bg-white/5 hover:ring-2 ring-brand-300 block">
+        <div class="font-semibold">${ROUTES[k][3]} ${t(ROUTES[k][0], ROUTES[k][2])}</div><div class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">${t(PAGE_HELP[k][0], PAGE_HELP[k][1])}</div></a>`).join('')}</div></div>
+
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="card p-5"><div class="font-semibold mb-3">🔎 ${t('Reading an answer card', 'जवाब कार्ड कैसे पढ़ें')}</div>
+        <div class="space-y-3">${badges.map(([b, en, hi]) => `<div class="flex gap-3 items-start"><div class="w-44 shrink-0">${b}</div><div class="text-sm">${t(en, hi)}</div></div>`).join('')}</div>
+        <p class="text-xs text-slate-500 mt-4">${t('Open “Agent trace” under an answer to see each of the 7 agent steps and their timings.', 'जवाब के नीचे “Agent trace” खोलें: 7 एजेंट चरण और उनका समय दिखेगा।')}</p></div>
+      <div class="card p-5"><div class="font-semibold mb-3">⚙️ ${t('Turn on AI in 4 steps', '4 कदमों में AI चालू करें')}</div>
+        <ol class="space-y-3">${[
+          ['Open cloud.cerebras.ai and sign in (free).', 'cloud.cerebras.ai खोलें और साइन इन करें (मुफ़्त)।'],
+          ['Go to API Keys → Create key, then copy it (starts with csk-).', 'API Keys → Create key, फिर कॉपी करें (csk- से शुरू)।'],
+          ['Here, open ⚙️ Settings and paste it in Cerebras → API key.', 'यहाँ ⚙️ सेटिंग्स खोलें और Cerebras → API key में पेस्ट करें।'],
+          ['Click “Save & test connection”. A ✅ means AI answers are on.', '“सेव करके जांचें” दबाएं। ✅ मतलब AI जवाब चालू।'],
+        ].map(([en, hi], i) => `<li class="flex gap-3"><div class="step-num">${i + 1}</div><div class="text-sm">${t(en, hi)}</div></li>`).join('')}</ol>
+        <a href="#/settings" class="btn btn-primary mt-4">⚙️ ${t('Open Settings', 'सेटिंग्स खोलें')}</a></div>
+    </div>
+
+    <div class="card p-5"><div class="font-semibold mb-3">❓ ${t('Common questions', 'आम सवाल')}</div>
+      <div class="space-y-2">${faq.map(([q, qh, a, ah]) => `<details class="rounded-xl p-3 bg-slate-50 dark:bg-white/5"><summary class="cursor-pointer font-medium text-sm">${t(q, qh)}</summary><div class="text-sm text-slate-600 dark:text-slate-300 mt-2">${t(a, ah)}</div></details>`).join('')}</div></div>
+
+    <div class="card p-5 text-sm"><div class="font-semibold mb-2">⌨️ ${t('Shortcuts & tips', 'शॉर्टकट व सुझाव')}</div>
+      <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+        <li>${t('Enter sends a question; Shift+Enter adds a new line.', 'Enter से सवाल भेजें; Shift+Enter से नई लाइन।')}</li>
+        <li>${t('Give numbers in the question (plot area, road width, height) to get an exact calculation.', 'सटीक गणना के लिए सवाल में संख्या दें (प्लॉट क्षेत्रफल, सड़क चौड़ाई, ऊंचाई)।')}</li>
+        <li>${t('🌗 in the sidebar switches dark mode; the EN / हिं buttons switch the interface language.', 'साइडबार में 🌗 से डार्क मोड; EN / हिं बटन से इंटरफ़ेस भाषा बदलें।')}</li>
+        <li>${t('Hidden a 💡 tip? Click “Show page tips again” below.', '💡 सुझाव छिपा दिया? नीचे “सुझाव फिर दिखाएं” दबाएं।')}</li>
+      </ul>
+      <div class="mt-3 flex gap-2"><button class="btn btn-ghost" id="reset-tips">💡 ${t('Show page tips again', 'सुझाव फिर दिखाएं')}</button><button class="btn btn-ghost" id="replay-welcome">👋 ${t('Replay welcome tour', 'स्वागत टूर फिर देखें')}</button></div></div>
+  </div>`;
+  view.querySelectorAll('[data-setlang]').forEach((b) => (b.onclick = () => { saveSettings({ uiLang: b.dataset.setlang }); renderNav(); router(); }));
+  $('#reset-tips').onclick = () => { Object.keys(PAGE_HELP).forEach((k) => localStorage.removeItem('bvs-hide-help-' + k)); router(); };
+  $('#replay-welcome').onclick = () => showWelcome();
 }
 
 initShell();
